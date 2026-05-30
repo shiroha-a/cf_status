@@ -187,8 +187,8 @@ const STYLE = `
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .card .meta { color: #8889; font-size: 0.85rem; }
   .bars { display: flex; gap: 2px; margin-top: 0.6rem; height: 26px; }
-  .bar-wrap { flex: 1 1 0; min-width: 2px; position: relative; }
-  .bar { width: 100%; height: 100%; border-radius: 2px; background: #8883; }
+  .bar-wrap { flex: 1 1 0; min-width: 2px; position: relative; display: flex; }
+  .bar { flex: 1; border-radius: 2px; background: #8883; }
   .bar.ok { background: #43a047; }
   .bar.warn { background: #fb8c00; }
   .bar.bad { background: #e53935; }
