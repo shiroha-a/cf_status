@@ -16,8 +16,9 @@ Cloudflareだけで完結する死活監視システム。Workers(Cron Triggers)
 ```bash
 npm install
 
-# 0. 設定テンプレートをコピー(wrangler.jsonc はgitignore。環境固有値を持つため)
+# 0. 設定テンプレートをコピー(どちらもgitignore。環境固有値・監視先を持つため)
 cp wrangler.jsonc.example wrangler.jsonc
+cp monitors.config.ts.example monitors.config.ts
 
 # 1. D1データベースを作成し、出力されたIDを wrangler.jsonc の database_id に貼り付ける
 npm run db:create
