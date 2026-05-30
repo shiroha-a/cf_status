@@ -2,6 +2,12 @@ import { html, raw } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import type { Env, MonitorStatus } from '../types';
 
+interface DayBar {
+  day: string;
+  /** Uptime percentage for the day, or null when no data was recorded. */
+  uptime: number | null;
+}
+
 interface MonitorView {
   id: number;
   name: string;
@@ -14,6 +20,8 @@ interface MonitorView {
   lastColo: string | null;
   /** Distinct data centers seen in the last 24h, for context on RT variance. */
   colos24h: string[];
+  /** Last 90 days of daily uptime, oldest first. */
+  bars: DayBar[];
 }
 
 interface IncidentView {
@@ -51,11 +59,25 @@ interface IncRow {
   resolved_at: number | null;
   cause: string | null;
 }
+interface DailyRow {
+  monitor_id: number;
+  day: string;
+  total: number;
+  ok_count: number;
+}
+
+const DAY_SECONDS = 86400;
+const UPTIME_BAR_DAYS = 90;
 
 /** Load everything the status page needs in a single D1 batch round-trip. */
 export async function getStatusData(env: Env): Promise<StatusData> {
   const now = Math.floor(Date.now() / 1000);
-  const since = now - 86400;
+  const since = now - DAY_SECONDS;
+  const startOfToday = now - (now % DAY_SECONDS);
+  // 90日バーの起点(89日前の0:00 UTC)をday文字列で求める
+  const barSince = new Date((startOfToday - (UPTIME_BAR_DAYS - 1) * DAY_SECONDS) * 1000)
+    .toISOString()
+    .slice(0, 10);
 
   const batch = await env.DB.batch([
     env.DB.prepare(
@@ -75,18 +97,45 @@ export async function getStatusData(env: Env): Promise<StatusData> {
        FROM incidents i JOIN monitors m ON m.id = i.monitor_id
        ORDER BY i.started_at DESC LIMIT 20`,
     ),
+    env.DB.prepare(
+      `SELECT monitor_id, day, total, ok_count FROM daily_stats
+       WHERE day >= ? ORDER BY day`,
+    ).bind(barSince),
   ]);
 
   const monRows = (batch[0]?.results ?? []) as unknown as MonRow[];
   const statRows = (batch[1]?.results ?? []) as unknown as StatRow[];
   const incRows = (batch[2]?.results ?? []) as unknown as IncRow[];
+  const dailyRows = (batch[3]?.results ?? []) as unknown as DailyRow[];
 
   const statByMonitor = new Map<number, StatRow>();
   for (const s of statRows) statByMonitor.set(s.monitor_id, s);
 
+  // monitor_id -> (day -> DailyRow) の二段マップ
+  const dailyByMonitor = new Map<number, Map<string, DailyRow>>();
+  for (const d of dailyRows) {
+    let m = dailyByMonitor.get(d.monitor_id);
+    if (!m) {
+      m = new Map<string, DailyRow>();
+      dailyByMonitor.set(d.monitor_id, m);
+    }
+    m.set(d.day, d);
+  }
+
+  // 表示する90日分のday列(古い順)
+  const barDays: string[] = [];
+  for (let i = UPTIME_BAR_DAYS - 1; i >= 0; i--) {
+    barDays.push(new Date((startOfToday - i * DAY_SECONDS) * 1000).toISOString().slice(0, 10));
+  }
+
   const monitors: MonitorView[] = monRows.map((m) => {
     const s = statByMonitor.get(m.id);
     const colos24h = s?.colos ? s.colos.split(',').filter(Boolean).sort() : [];
+    const dayMap = dailyByMonitor.get(m.id);
+    const bars: DayBar[] = barDays.map((day) => {
+      const d = dayMap?.get(day);
+      return { day, uptime: d && d.total > 0 ? (d.ok_count / d.total) * 100 : null };
+    });
     return {
       id: m.id,
       name: m.name,
@@ -97,6 +146,7 @@ export async function getStatusData(env: Env): Promise<StatusData> {
       avgRtMs: s?.avg_rt != null ? Math.round(s.avg_rt) : null,
       lastColo: m.last_colo,
       colos24h,
+      bars,
     };
   });
 
@@ -119,9 +169,14 @@ const STYLE = `
   .summary { padding: 0.75rem 1rem; border-radius: 8px; font-weight: 600; margin-bottom: 1.5rem; }
   .summary.ok { background: #e6f4ea; color: #1e4620; }
   .summary.bad { background: #fce8e6; color: #5f1411; }
-  .card { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-          padding: 0.75rem 1rem; border: 1px solid #8883; border-radius: 8px; margin-bottom: 0.5rem; }
+  .card { padding: 0.75rem 1rem; border: 1px solid #8883; border-radius: 8px; margin-bottom: 0.5rem; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .card .meta { color: #8889; font-size: 0.85rem; }
+  .bars { display: flex; gap: 2px; margin-top: 0.6rem; height: 26px; }
+  .bar { flex: 1 1 0; min-width: 2px; border-radius: 2px; background: #8883; }
+  .bar.ok { background: #43a047; }
+  .bar.warn { background: #fb8c00; }
+  .bar.bad { background: #e53935; }
   .badge { padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
   .badge.up { background: #43a047; color: #fff; }
   .badge.down { background: #e53935; color: #fff; }
@@ -162,6 +217,14 @@ function fmtTime(unix: number | null, tz: string): string {
   return `${formatted} (${tz})`;
 }
 
+/** Map a daily uptime percentage to a bar color class (empty = no-data grey). */
+function barClass(uptime: number | null): string {
+  if (uptime == null) return '';
+  if (uptime >= 99.9) return 'ok';
+  if (uptime >= 95) return 'warn';
+  return 'bad';
+}
+
 /** Render the public status page as an HTML string. */
 export function renderStatusPage(
   data: StatusData,
@@ -179,20 +242,31 @@ export function renderStatusPage(
   const cards = data.monitors.map(
     (m) => html`
       <div class="card">
-        <div>
-          <div class="name">${m.name}</div>
-          <div class="url">${m.url}</div>
-          <div class="meta">
-            24h uptime: ${m.uptime24h == null ? '-' : `${m.uptime24h.toFixed(2)}%`}
-            ${m.avgRtMs == null ? '' : raw(` &middot; avg ${m.avgRtMs}ms`)}
-            &middot; last check: ${fmtTime(m.lastCheckedAt, tz)}
+        <div class="card-head">
+          <div>
+            <div class="name">${m.name}</div>
+            <div class="url">${m.url}</div>
+            <div class="meta">
+              24h uptime: ${m.uptime24h == null ? '-' : `${m.uptime24h.toFixed(2)}%`}
+              ${m.avgRtMs == null ? '' : raw(` &middot; avg ${m.avgRtMs}ms`)}
+              &middot; last check: ${fmtTime(m.lastCheckedAt, tz)}
+            </div>
+            <div class="meta">
+              measured from: ${m.lastColo ?? '-'}
+              ${m.colos24h.length > 1 ? raw(` &middot; 24h colos: ${m.colos24h.join(', ')}`) : ''}
+            </div>
           </div>
-          <div class="meta">
-            measured from: ${m.lastColo ?? '-'}
-            ${m.colos24h.length > 1 ? raw(` &middot; 24h colos: ${m.colos24h.join(', ')}`) : ''}
-          </div>
+          <span class="badge ${m.status}">${m.status.toUpperCase()}</span>
         </div>
-        <span class="badge ${m.status}">${m.status.toUpperCase()}</span>
+        <div class="bars">
+          ${m.bars.map(
+            (b) =>
+              html`<span
+                class="bar ${barClass(b.uptime)}"
+                title="${b.day}: ${b.uptime == null ? 'no data' : `${b.uptime.toFixed(2)}%`}"
+              ></span>`,
+          )}
+        </div>
       </div>
     `,
   );

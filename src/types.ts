@@ -7,6 +7,8 @@ export interface Env {
   OK_THRESHOLD?: string;
   /** IANA time zone for status page timestamps (e.g. 'Asia/Tokyo'). Default 'UTC'. */
   TIMEZONE?: string;
+  /** Days to keep raw `checks` rows. Daily aggregates are kept 90 days. Default 30. */
+  RETENTION_DAYS?: string;
   DISCORD_WEBHOOK_URL?: string;
   SLACK_WEBHOOK_URL?: string;
   GENERIC_WEBHOOK_URL?: string;

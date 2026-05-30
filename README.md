@@ -59,6 +59,15 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 - 連続`FAIL_THRESHOLD`(既定3)回失敗でDOWN確定 → 通知 + インシデント起票
 - 連続`OK_THRESHOLD`(既定2)回成功で復旧 → 通知 + インシデント解決
 - 確定遷移時のみ通知し、フラッピングによる誤報を抑制
+- 各scheduled実行の末尾で当日・前日分を`daily_stats`に集計し、`RETENTION_DAYS`より古い`checks`を削除(データ肥大化を防止)
+
+## エンドポイント
+
+| メソッド・パス | 内容 |
+| --- | --- |
+| `GET /` | 公開ステータスページ(全体サマリ・90日稼働率バー・インシデント)。30秒キャッシュ |
+| `GET /api/status` | 現在の状態をJSONで返す |
+| `GET /api/monitors/:id/history?limit=N` | 指定monitorのチェック履歴(既定100件・最大500件) |
 
 ## 設定(環境変数)
 
@@ -69,6 +78,7 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 | `FAIL_THRESHOLD` | `3` | DOWN確定に必要な連続失敗回数 |
 | `OK_THRESHOLD` | `2` | 復旧確定に必要な連続成功回数 |
 | `TIMEZONE` | `UTC` | ステータスページの時刻表示に使うIANAタイムゾーン(例: `Asia/Tokyo`)。不正な値はUTCにフォールバック |
+| `RETENTION_DAYS` | `30` | 生の`checks`行を保持する日数。日次集計(`daily_stats`)は90日保持 |
 
 通知(Discord等)の時刻は各クライアント側のタイムゾーンで表示されるため、`TIMEZONE`はステータスページの表示にのみ影響する。
 
