@@ -7,7 +7,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.get('/', async (c) => {
   const data = await getStatusData(c.env);
-  return c.html(renderStatusPage(data));
+  return c.html(renderStatusPage(data, c.env.TIMEZONE ?? 'UTC'));
 });
 
 app.get('/api/status', async (c) => {

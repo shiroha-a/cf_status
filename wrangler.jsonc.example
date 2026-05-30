@@ -36,6 +36,8 @@
   ],
   "vars": {
     "FAIL_THRESHOLD": "3",
-    "OK_THRESHOLD": "2"
+    "OK_THRESHOLD": "2",
+    // ステータスページの時刻表示に使うIANAタイムゾーン(例: Asia/Tokyo)。未設定ならUTC
+    "TIMEZONE": "UTC"
   }
 }

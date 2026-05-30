@@ -5,6 +5,8 @@ export interface Env {
   FAIL_THRESHOLD?: string;
   /** Consecutive successes required to confirm recovery (UP). Default 2. */
   OK_THRESHOLD?: string;
+  /** IANA time zone for status page timestamps (e.g. 'Asia/Tokyo'). Default 'UTC'. */
+  TIMEZONE?: string;
   DISCORD_WEBHOOK_URL?: string;
   SLACK_WEBHOOK_URL?: string;
   GENERIC_WEBHOOK_URL?: string;

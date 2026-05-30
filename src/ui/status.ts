@@ -133,13 +133,41 @@ const STYLE = `
   footer { margin-top: 2rem; color: #8889; font-size: 0.8rem; }
 `;
 
-function fmtTime(unix: number | null): string {
+/** Validate an IANA time zone, falling back to UTC if unsupported/invalid. */
+export function resolveTimeZone(tz: string | undefined): string {
+  if (!tz) return 'UTC';
+  try {
+    // 不正なタイムゾーン名はRangeErrorを投げるため、ここで弾いてUTCにフォールバック
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return 'UTC';
+  }
+}
+
+/** Format a unix timestamp (seconds) in the given IANA time zone. */
+function fmtTime(unix: number | null, tz: string): string {
   if (unix == null) return '-';
-  return `${new Date(unix * 1000).toISOString().replace('T', ' ').slice(0, 19)} UTC`;
+  // sv-SEロケールは "YYYY-MM-DD HH:mm:ss" 形式を返すため整形に都合がよい
+  const formatted = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(unix * 1000));
+  return `${formatted} (${tz})`;
 }
 
 /** Render the public status page as an HTML string. */
-export function renderStatusPage(data: StatusData): HtmlEscapedString | Promise<HtmlEscapedString> {
+export function renderStatusPage(
+  data: StatusData,
+  timeZone: string,
+): HtmlEscapedString | Promise<HtmlEscapedString> {
+  const tz = resolveTimeZone(timeZone);
   const summaryClass = data.allOperational ? 'ok' : 'bad';
   const summaryText =
     data.monitors.length === 0
@@ -157,7 +185,7 @@ export function renderStatusPage(data: StatusData): HtmlEscapedString | Promise<
           <div class="meta">
             24h uptime: ${m.uptime24h == null ? '-' : `${m.uptime24h.toFixed(2)}%`}
             ${m.avgRtMs == null ? '' : raw(` &middot; avg ${m.avgRtMs}ms`)}
-            &middot; last check: ${fmtTime(m.lastCheckedAt)}
+            &middot; last check: ${fmtTime(m.lastCheckedAt, tz)}
           </div>
           <div class="meta">
             measured from: ${m.lastColo ?? '-'}
@@ -173,8 +201,8 @@ export function renderStatusPage(data: StatusData): HtmlEscapedString | Promise<
     (i) => html`
       <tr>
         <td>${i.name}</td>
-        <td>${fmtTime(i.startedAt)}</td>
-        <td>${i.resolvedAt == null ? raw('<b>ongoing</b>') : fmtTime(i.resolvedAt)}</td>
+        <td>${fmtTime(i.startedAt, tz)}</td>
+        <td>${i.resolvedAt == null ? raw('<b>ongoing</b>') : fmtTime(i.resolvedAt, tz)}</td>
         <td>${i.cause ?? '-'}</td>
       </tr>
     `,
@@ -208,7 +236,10 @@ export function renderStatusPage(data: StatusData): HtmlEscapedString | Promise<
                 </tbody>
               </table>`
         }
-        <footer>Generated at ${fmtTime(data.generatedAt)}. Auto-refresh every 60s.</footer>
+        <footer>
+          Generated at ${fmtTime(data.generatedAt, tz)}. Times shown in ${tz}.
+          Auto-refresh every 60s.
+        </footer>
       </body>
     </html>`;
 }
