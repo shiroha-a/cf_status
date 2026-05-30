@@ -2,45 +2,18 @@ import { html, raw } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import type { Env, MonitorStatus } from '../types';
 import { resolveTimeZone, tzDayString, tzStartOfDay } from '../tz';
-
-interface DayBar {
-  day: string;
-  /** Uptime percentage for the day, or null when no data was recorded. */
-  uptime: number | null;
-  total: number;
-  okCount: number;
-  avgRt: number | null;
-}
-
-interface MonitorView {
-  id: number;
-  name: string;
-  url: string;
-  status: MonitorStatus;
-  lastCheckedAt: number | null;
-  uptime24h: number | null;
-  avgRtMs: number | null;
-  /** Data center that ran the most recent check. */
-  lastColo: string | null;
-  /** Distinct data centers seen in the last 24h, for context on RT variance. */
-  colos24h: string[];
-  /** Last 90 days of daily uptime, oldest first. */
-  bars: DayBar[];
-}
-
-interface IncidentView {
-  name: string;
-  startedAt: number;
-  resolvedAt: number | null;
-  cause: string | null;
-}
-
-interface StatusData {
-  monitors: MonitorView[];
-  incidents: IncidentView[];
-  allOperational: boolean;
-  generatedAt: number;
-}
+import { renderRich } from './layouts/rich';
+import {
+  barClass,
+  DAY_SECONDS,
+  type DayBar,
+  fmtTime,
+  type IncidentView,
+  type MonitorView,
+  type StatusData,
+  UPTIME_BAR_DAYS,
+} from './shared';
+import { type Theme, themeToCss } from './theme';
 
 interface MonRow {
   id: number;
@@ -70,9 +43,6 @@ interface DailyRow {
   ok_count: number;
   avg_rt_ms: number | null;
 }
-
-const DAY_SECONDS = 86400;
-const UPTIME_BAR_DAYS = 90;
 
 /** Load everything the status page needs in a single D1 batch round-trip. */
 export async function getStatusData(env: Env): Promise<StatusData> {
@@ -150,6 +120,11 @@ export async function getStatusData(env: Env): Promise<StatusData> {
         avgRt: d.avg_rt_ms,
       };
     });
+    // 90日稼働率はデータのある日の平均
+    const known = bars.filter((b) => b.uptime != null);
+    const uptime90d =
+      known.length > 0 ? known.reduce((a, b) => a + (b.uptime ?? 0), 0) / known.length : null;
+
     return {
       id: m.id,
       name: m.name,
@@ -157,6 +132,7 @@ export async function getStatusData(env: Env): Promise<StatusData> {
       status: m.current_status as MonitorStatus,
       lastCheckedAt: m.last_checked_at,
       uptime24h: s && s.total > 0 ? (s.ok_count / s.total) * 100 : null,
+      uptime90d,
       avgRtMs: s?.avg_rt != null ? Math.round(s.avg_rt) : null,
       lastColo: m.last_colo,
       colos24h,
@@ -176,9 +152,26 @@ export async function getStatusData(env: Env): Promise<StatusData> {
   return { monitors, incidents, allOperational, generatedAt: now };
 }
 
+/**
+ * Render the status page. Dispatches on the theme's layout: 'rich' delegates to
+ * the redesigned dashboard, otherwise the classic minimal page is rendered.
+ */
+export function renderStatusPage(
+  data: StatusData,
+  timeZone: string,
+  theme: Theme,
+): HtmlEscapedString | Promise<HtmlEscapedString> {
+  const tz = resolveTimeZone(timeZone);
+  const css = themeToCss(theme);
+  if (theme.layout === 'rich') {
+    return renderRich(data, tz, css);
+  }
+  return renderClassic(data, tz, css);
+}
+
 // 値はすべてテーマのCSS変数(src/ui/theme.ts)を参照する。:rootの定義は
 // renderStatusPageでテーマ別に注入されるため、ここには含めない。
-const STYLE = `
+const CLASSIC_STYLE = `
   body { font-family: var(--font-sans); font-size: var(--fs-base); line-height: var(--lh-base);
          max-width: var(--page-max); margin: 2rem auto; padding: 0 1rem; }
   h1 { font-size: var(--fs-h1); }
@@ -214,38 +207,12 @@ const STYLE = `
   footer { margin-top: 2rem; color: var(--fg-muted); font-size: var(--fs-foot); }
 `;
 
-/** Format a unix timestamp (seconds) in the given IANA time zone. */
-function fmtTime(unix: number | null, tz: string): string {
-  if (unix == null) return '-';
-  // sv-SEロケールは "YYYY-MM-DD HH:mm:ss" 形式を返すため整形に都合がよい
-  const formatted = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(new Date(unix * 1000));
-  return `${formatted} (${tz})`;
-}
-
-/** Map a daily uptime percentage to a bar color class (empty = no-data grey). */
-function barClass(uptime: number | null): string {
-  if (uptime == null) return '';
-  if (uptime >= 99.9) return 'ok';
-  if (uptime >= 95) return 'warn';
-  return 'bad';
-}
-
-/** Render the public status page as an HTML string. `themeCss` is a `:root{…}` block. */
-export function renderStatusPage(
+/** Render the classic minimal status page. */
+function renderClassic(
   data: StatusData,
-  timeZone: string,
+  tz: string,
   themeCss: string,
 ): HtmlEscapedString | Promise<HtmlEscapedString> {
-  const tz = resolveTimeZone(timeZone);
   const summaryClass = data.allOperational ? 'ok' : 'bad';
   const summaryText =
     data.monitors.length === 0
@@ -314,7 +281,7 @@ export function renderStatusPage(
         <title>Service Status</title>
         <style>
           ${raw(themeCss)}
-          ${raw(STYLE)}
+          ${raw(CLASSIC_STYLE)}
         </style>
       </head>
       <body>

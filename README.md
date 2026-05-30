@@ -85,23 +85,32 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 
 ## テーマ
 
-ステータスページの配色・タイポ・余白などはデザイントークン(CSS変数)で管理され、テーマとして差し替えできる。
+ステータスページは**テーマ**で見た目を切り替えられる。各テーマは「レイアウト(構造)＋デザイントークン(CSS変数)」の組で、`src/ui/theme.ts`に定義する。
 
-- **適用**: `THEME`環境変数でサイト全体のテーマを指定。`?theme=<name>`クエリで一時プレビューも可能(例: `https://status.example.com/?theme=high-contrast`)。
-- **テーマの追加**: `src/ui/theme.ts`の`themes`に、`defaultTokens`を展開して上書きしたいトークンだけ変えたエントリを足す。再デプロイで反映される。
+| テーマ | レイアウト | 内容 |
+| --- | --- | --- |
+| `default` | classic | 既定。system-native minimalism。軽量・外部依存なし |
+| `high-contrast` | classic | 境界・メタ文字を濃くした高コントラスト例 |
+| `midnight` | rich | ダークなダッシュボード(Hero・統計タイル・グロー)。Webフォントは使わず`system-ui`で代用 |
+
+- **適用**: `THEME`環境変数でサイト全体を指定。`?theme=<name>`で一時プレビュー(例: `/?theme=midnight`)。不正名は`default`にフォールバック。
+- **レイアウト**: `classic`(従来のミニマル)と`rich`(リッチなダッシュボード)。`rich`のCSS・構造は`src/ui/layouts/rich.ts`。
+- **テーマの追加**: `themes`に、`layout`を選び対応するトークンベース(`classicTokens`/`richTokens`)を展開したエントリを足す。再デプロイで反映。
 
 ```ts
 // src/ui/theme.ts
 export const themes = {
-  default: { colorScheme: 'light dark', tokens: defaultTokens },
+  default:  { layout: 'classic', colorScheme: 'light dark', tokens: classicTokens },
+  midnight: { layout: 'rich',    colorScheme: 'dark',       tokens: richTokens },
   'my-theme': {
+    layout: 'classic',
     colorScheme: 'light dark',
-    tokens: { ...defaultTokens, 'status-up': '#2e7d32', border: '#666' },
+    tokens: { ...classicTokens, 'status-up': '#2e7d32', border: '#666' },
   },
 };
 ```
 
-`high-contrast`はサンプルテーマ。不要なら削除してよい。
+`high-contrast`/`midnight`はサンプル。不要なら削除してよい。
 
 ## SSL証明書について
 
