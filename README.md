@@ -97,3 +97,7 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 | `npm run typecheck` | 型チェック |
 | `npm run lint` | Biomeでlint+整形 |
 | `npm run db:migrate:remote` | 本番D1へマイグレーション適用 |
+
+## License
+
+[MIT](LICENSE)
