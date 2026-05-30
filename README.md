@@ -16,8 +16,9 @@ Cloudflareだけで完結する死活監視システム。Workers(Cron Triggers)
 ```bash
 npm install
 
-# 0. 設定テンプレートをコピー(wrangler.jsonc はgitignore。環境固有値を持つため)
+# 0. 設定テンプレートをコピー(どちらもgitignore。環境固有値・監視先を持つため)
 cp wrangler.jsonc.example wrangler.jsonc
+cp monitors.config.ts.example monitors.config.ts
 
 # 1. D1データベースを作成し、出力されたIDを wrangler.jsonc の database_id に貼り付ける
 npm run db:create
@@ -58,11 +59,34 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 - 連続`FAIL_THRESHOLD`(既定3)回失敗でDOWN確定 → 通知 + インシデント起票
 - 連続`OK_THRESHOLD`(既定2)回成功で復旧 → 通知 + インシデント解決
 - 確定遷移時のみ通知し、フラッピングによる誤報を抑制
+- 各scheduled実行の末尾で当日・前日分を`daily_stats`に集計し、`RETENTION_DAYS`より古い`checks`を削除(データ肥大化を防止)
 
-## 制約(SSL証明書の有効期限)
+## エンドポイント
 
-「残りN日で失効」の事前警告はCloudflareの制約上ベストエフォート(フェーズ3で検証)。
-証明書の失効そのものはHTTPチェックで確実に検知される(`.tmp/design.md` 6.2参照)。
+| メソッド・パス | 内容 |
+| --- | --- |
+| `GET /` | 公開ステータスページ(全体サマリ・90日稼働率バー・インシデント)。30秒キャッシュ |
+| `GET /api/status` | 現在の状態をJSONで返す |
+| `GET /api/monitors/:id/history?limit=N` | 指定monitorのチェック履歴(既定100件・最大500件) |
+
+## 設定(環境変数)
+
+`wrangler.jsonc`の`vars`で設定する。
+
+| 変数 | 既定 | 内容 |
+| --- | --- | --- |
+| `FAIL_THRESHOLD` | `3` | DOWN確定に必要な連続失敗回数 |
+| `OK_THRESHOLD` | `2` | 復旧確定に必要な連続成功回数 |
+| `TIMEZONE` | `UTC` | ステータスページの時刻表示と90日バーの日区切りに使うIANAタイムゾーン(例: `Asia/Tokyo`)。不正な値はUTCにフォールバック。DSTのあるタイムゾーンは切替日にわずかな誤差あり |
+| `RETENTION_DAYS` | `30` | 生の`checks`行を保持する日数。日次集計(`daily_stats`)は90日保持 |
+
+通知(Discord等)の時刻は各クライアント側のタイムゾーンで表示されるため、`TIMEZONE`はステータスページの表示にのみ影響する。
+
+## SSL証明書について
+
+証明書の失効そのものはHTTPSチェックで自動的に検知される(失効すれば`fetch`が失敗するため)。
+一方、「残りN日で失効」の事前警告は、Cloudflare Workersに証明書の有効期限を取得する手段が無いため**非対応**とする。
+設定上の`sslCheck`/`sslWarnDays`は予約フィールド(現状未使用)。
 
 ## スクリプト
 

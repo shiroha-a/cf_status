@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "format": "biome format --write .",
     "lint": "biome check --write .",
+    "shot": "node scripts/screenshot.mjs",
     "db:create": "wrangler d1 create hc",
     "db:migrate:local": "wrangler d1 migrations apply hc --local",
     "db:migrate:remote": "wrangler d1 migrations apply hc --remote"
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@cloudflare/workers-types": "^4.20260527.1",
+    "playwright-core": "^1.60.0",
     "typescript": "^5.7.0",
     "wrangler": "^4.95.0"
   }

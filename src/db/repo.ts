@@ -121,13 +121,14 @@ export function buildRecordStatements(
   result: CheckResult,
   transition: Transition,
   now: number,
+  colo: string | null,
 ): D1PreparedStatement[] {
   const stmts: D1PreparedStatement[] = [
     db
       .prepare(
         `INSERT INTO checks
-           (monitor_id, checked_at, ok, status_code, response_time_ms, ssl_days_left, error)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (monitor_id, checked_at, ok, status_code, response_time_ms, ssl_days_left, error, colo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         monitor.id,
@@ -137,6 +138,7 @@ export function buildRecordStatements(
         result.responseTimeMs,
         result.sslDaysLeft,
         result.error,
+        colo,
       ),
     db
       .prepare(

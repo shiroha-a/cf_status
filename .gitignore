@@ -10,3 +10,6 @@ dist/
 
 # 環境固有の設定(database_idやroutesを含むためローカル管理)
 wrangler.jsonc
+
+# 監視対象の設定(監視先URLを含むためローカル管理)
+monitors.config.ts
