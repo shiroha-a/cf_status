@@ -7,6 +7,9 @@ interface DayBar {
   day: string;
   /** Uptime percentage for the day, or null when no data was recorded. */
   uptime: number | null;
+  total: number;
+  okCount: number;
+  avgRt: number | null;
 }
 
 interface MonitorView {
@@ -65,6 +68,7 @@ interface DailyRow {
   day: string;
   total: number;
   ok_count: number;
+  avg_rt_ms: number | null;
 }
 
 const DAY_SECONDS = 86400;
@@ -99,7 +103,7 @@ export async function getStatusData(env: Env): Promise<StatusData> {
        ORDER BY i.started_at DESC LIMIT 20`,
     ),
     env.DB.prepare(
-      `SELECT monitor_id, day, total, ok_count FROM daily_stats
+      `SELECT monitor_id, day, total, ok_count, avg_rt_ms FROM daily_stats
        WHERE day >= ? ORDER BY day`,
     ).bind(barSince),
   ]);
@@ -135,7 +139,16 @@ export async function getStatusData(env: Env): Promise<StatusData> {
     const dayMap = dailyByMonitor.get(m.id);
     const bars: DayBar[] = barDays.map((day) => {
       const d = dayMap?.get(day);
-      return { day, uptime: d && d.total > 0 ? (d.ok_count / d.total) * 100 : null };
+      if (!d || d.total === 0) {
+        return { day, uptime: null, total: 0, okCount: 0, avgRt: null };
+      }
+      return {
+        day,
+        uptime: (d.ok_count / d.total) * 100,
+        total: d.total,
+        okCount: d.ok_count,
+        avgRt: d.avg_rt_ms,
+      };
     });
     return {
       id: m.id,
@@ -174,10 +187,20 @@ const STYLE = `
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .card .meta { color: #8889; font-size: 0.85rem; }
   .bars { display: flex; gap: 2px; margin-top: 0.6rem; height: 26px; }
-  .bar { flex: 1 1 0; min-width: 2px; border-radius: 2px; background: #8883; }
+  .bar-wrap { flex: 1 1 0; min-width: 2px; position: relative; }
+  .bar { width: 100%; height: 100%; border-radius: 2px; background: #8883; }
   .bar.ok { background: #43a047; }
   .bar.warn { background: #fb8c00; }
   .bar.bad { background: #e53935; }
+  .tip { position: absolute; bottom: 135%; left: 50%; transform: translateX(-50%);
+         background: #1e1e1eee; color: #fff; padding: 6px 9px; border-radius: 6px;
+         font-size: 0.75rem; line-height: 1.4; white-space: nowrap; text-align: left;
+         box-shadow: 0 2px 8px #0006; opacity: 0; visibility: hidden;
+         transition: opacity 0.12s; z-index: 10; pointer-events: none; }
+  .tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+                border: 5px solid transparent; border-top-color: #1e1e1eee; }
+  .bar-wrap:hover .tip { opacity: 1; visibility: visible; }
+  .tip .k { color: #aaa; }
   .badge { padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
   .badge.up { background: #43a047; color: #fff; }
   .badge.down { background: #e53935; color: #fff; }
@@ -249,11 +272,19 @@ export function renderStatusPage(
         </div>
         <div class="bars">
           ${m.bars.map(
-            (b) =>
-              html`<span
-                class="bar ${barClass(b.uptime)}"
-                title="${b.day}: ${b.uptime == null ? 'no data' : `${b.uptime.toFixed(2)}%`}"
-              ></span>`,
+            (b) => html`<div class="bar-wrap">
+              <span class="bar ${barClass(b.uptime)}"></span>
+              <span class="tip">
+                <b>${b.day}</b><br />
+                ${
+                  b.uptime == null
+                    ? raw('<span class="k">No data</span>')
+                    : html`<span class="k">Uptime</span> ${b.uptime.toFixed(2)}%<br />
+                        <span class="k">Checks</span> ${b.okCount}/${b.total} ok<br />
+                        <span class="k">Avg RT</span> ${b.avgRt == null ? '-' : `${b.avgRt}ms`}`
+                }
+              </span>
+            </div>`,
           )}
         </div>
       </div>
