@@ -7,6 +7,8 @@ export interface Env {
   OK_THRESHOLD?: string;
   /** IANA time zone for status page timestamps (e.g. 'Asia/Tokyo'). Default 'UTC'. */
   TIMEZONE?: string;
+  /** Status page theme name (see src/ui/theme.ts). Default 'default'. */
+  THEME?: string;
   /** Days to keep raw `checks` rows. Daily aggregates are kept 90 days. Default 30. */
   RETENTION_DAYS?: string;
   DISCORD_WEBHOOK_URL?: string;

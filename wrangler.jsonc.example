@@ -40,6 +40,8 @@
     // ステータスページの時刻表示に使うIANAタイムゾーン(例: Asia/Tokyo)。未設定ならUTC
     "TIMEZONE": "UTC",
     // 生のchecks行を保持する日数。日次集計(daily_stats)は90日保持。未設定なら30
-    "RETENTION_DAYS": "30"
+    "RETENTION_DAYS": "30",
+    // ステータスページのテーマ名(src/ui/theme.ts)。未設定なら default
+    "THEME": "default"
   }
 }

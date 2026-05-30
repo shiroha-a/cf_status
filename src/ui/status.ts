@@ -176,40 +176,42 @@ export async function getStatusData(env: Env): Promise<StatusData> {
   return { monitors, incidents, allOperational, generatedAt: now };
 }
 
+// 値はすべてテーマのCSS変数(src/ui/theme.ts)を参照する。:rootの定義は
+// renderStatusPageでテーマ別に注入されるため、ここには含めない。
 const STYLE = `
-  :root { color-scheme: light dark; }
-  body { font-family: system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-  h1 { font-size: 1.5rem; }
-  .summary { padding: 0.75rem 1rem; border-radius: 8px; font-weight: 600; margin-bottom: 1.5rem; }
-  .summary.ok { background: #e6f4ea; color: #1e4620; }
-  .summary.bad { background: #fce8e6; color: #5f1411; }
-  .card { padding: 0.75rem 1rem; border: 1px solid #8883; border-radius: 8px; margin-bottom: 0.5rem; }
+  body { font-family: var(--font-sans); font-size: var(--fs-base); line-height: var(--lh-base);
+         max-width: var(--page-max); margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: var(--fs-h1); }
+  .summary { padding: var(--pad-card); border-radius: var(--radius-card); font-weight: var(--fw-bold); margin-bottom: 1.5rem; }
+  .summary.ok { background: var(--summary-ok-bg); color: var(--summary-ok-fg); }
+  .summary.bad { background: var(--summary-bad-bg); color: var(--summary-bad-fg); }
+  .card { padding: var(--pad-card); border: 1px solid var(--border); border-radius: var(--radius-card); margin-bottom: 0.5rem; }
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-  .card .meta { color: #8889; font-size: 0.85rem; }
-  .bars { display: flex; gap: 2px; margin-top: 0.6rem; height: 26px; }
-  .bar-wrap { flex: 1 1 0; min-width: 2px; position: relative; display: flex; }
-  .bar { flex: 1; border-radius: 2px; background: #8883; }
-  .bar.ok { background: #43a047; }
-  .bar.warn { background: #fb8c00; }
-  .bar.bad { background: #e53935; }
+  .card .meta { color: var(--fg-muted); font-size: var(--fs-meta); }
+  .bars { display: flex; gap: var(--gap-bars); margin-top: 0.6rem; height: var(--bar-height); }
+  .bar-wrap { flex: 1 1 0; min-width: var(--bar-min-w); position: relative; display: flex; }
+  .bar { flex: 1; border-radius: var(--radius-bar); background: var(--bar-empty); }
+  .bar.ok { background: var(--status-up); }
+  .bar.warn { background: var(--status-warn); }
+  .bar.bad { background: var(--status-down); }
   .tip { position: absolute; bottom: 135%; left: 50%; transform: translateX(-50%);
-         background: #1e1e1eee; color: #fff; padding: 6px 9px; border-radius: 6px;
-         font-size: 0.75rem; line-height: 1.4; white-space: nowrap; text-align: left;
-         box-shadow: 0 2px 8px #0006; opacity: 0; visibility: hidden;
+         background: var(--tip-bg); color: var(--tip-fg); padding: 6px 9px; border-radius: var(--radius-tip);
+         font-size: var(--fs-tip); line-height: var(--lh-tip); white-space: nowrap; text-align: left;
+         box-shadow: var(--tip-shadow); opacity: 0; visibility: hidden;
          transition: opacity 0.12s; z-index: 10; pointer-events: none; }
   .tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-                border: 5px solid transparent; border-top-color: #1e1e1eee; }
+                border: 5px solid transparent; border-top-color: var(--tip-bg); }
   .bar-wrap:hover .tip { opacity: 1; visibility: visible; }
-  .tip .k { color: #aaa; }
-  .badge { padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
-  .badge.up { background: #43a047; color: #fff; }
-  .badge.down { background: #e53935; color: #fff; }
-  .badge.unknown { background: #9e9e9e; color: #fff; }
-  .name { font-weight: 600; }
-  .url { color: #8889; font-size: 0.85rem; word-break: break-all; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 0.5rem; }
-  td, th { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid #8883; }
-  footer { margin-top: 2rem; color: #8889; font-size: 0.8rem; }
+  .tip .k { color: var(--tip-key); }
+  .badge { padding: var(--pad-badge); border-radius: var(--radius-pill); font-size: var(--fs-badge); font-weight: var(--fw-bold); white-space: nowrap; }
+  .badge.up { background: var(--status-up); color: var(--badge-fg); }
+  .badge.down { background: var(--status-down); color: var(--badge-fg); }
+  .badge.unknown { background: var(--status-unknown); color: var(--badge-fg); }
+  .name { font-weight: var(--fw-bold); }
+  .url { color: var(--fg-muted); font-size: var(--fs-meta); word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: var(--fs-card); margin-top: 0.5rem; }
+  td, th { text-align: left; padding: var(--pad-cell); border-bottom: 1px solid var(--border); }
+  footer { margin-top: 2rem; color: var(--fg-muted); font-size: var(--fs-foot); }
 `;
 
 /** Format a unix timestamp (seconds) in the given IANA time zone. */
@@ -237,10 +239,11 @@ function barClass(uptime: number | null): string {
   return 'bad';
 }
 
-/** Render the public status page as an HTML string. */
+/** Render the public status page as an HTML string. `themeCss` is a `:root{…}` block. */
 export function renderStatusPage(
   data: StatusData,
   timeZone: string,
+  themeCss: string,
 ): HtmlEscapedString | Promise<HtmlEscapedString> {
   const tz = resolveTimeZone(timeZone);
   const summaryClass = data.allOperational ? 'ok' : 'bad';
@@ -310,6 +313,7 @@ export function renderStatusPage(
         <meta http-equiv="refresh" content="60" />
         <title>Service Status</title>
         <style>
+          ${raw(themeCss)}
           ${raw(STYLE)}
         </style>
       </head>

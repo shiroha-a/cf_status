@@ -79,8 +79,29 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 | `OK_THRESHOLD` | `2` | 復旧確定に必要な連続成功回数 |
 | `TIMEZONE` | `UTC` | ステータスページの時刻表示と90日バーの日区切りに使うIANAタイムゾーン(例: `Asia/Tokyo`)。不正な値はUTCにフォールバック。DSTのあるタイムゾーンは切替日にわずかな誤差あり |
 | `RETENTION_DAYS` | `30` | 生の`checks`行を保持する日数。日次集計(`daily_stats`)は90日保持 |
+| `THEME` | `default` | ステータスページのテーマ名(`src/ui/theme.ts`)。不正な値は`default`にフォールバック |
 
 通知(Discord等)の時刻は各クライアント側のタイムゾーンで表示されるため、`TIMEZONE`はステータスページの表示にのみ影響する。
+
+## テーマ
+
+ステータスページの配色・タイポ・余白などはデザイントークン(CSS変数)で管理され、テーマとして差し替えできる。
+
+- **適用**: `THEME`環境変数でサイト全体のテーマを指定。`?theme=<name>`クエリで一時プレビューも可能(例: `https://status.example.com/?theme=high-contrast`)。
+- **テーマの追加**: `src/ui/theme.ts`の`themes`に、`defaultTokens`を展開して上書きしたいトークンだけ変えたエントリを足す。再デプロイで反映される。
+
+```ts
+// src/ui/theme.ts
+export const themes = {
+  default: { colorScheme: 'light dark', tokens: defaultTokens },
+  'my-theme': {
+    colorScheme: 'light dark',
+    tokens: { ...defaultTokens, 'status-up': '#2e7d32', border: '#666' },
+  },
+};
+```
+
+`high-contrast`はサンプルテーマ。不要なら削除してよい。
 
 ## SSL証明書について
 
