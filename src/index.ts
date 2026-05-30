@@ -2,18 +2,23 @@ import { Hono } from 'hono';
 import { handleScheduled } from './scheduled';
 import type { Env } from './types';
 import { getStatusData, renderStatusPage } from './ui/status';
+import { themeToCss } from './ui/theme';
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.get('/', async (c) => {
-  // ステータスページは短時間キャッシュし、D1読み取りとレンダリングコストを抑える
+  // テーマはクエリ(プレビュー用)を優先し、無ければ環境変数、最後にdefault
+  const theme = c.req.query('theme') ?? c.env.THEME ?? 'default';
+  // ステータスページは短時間キャッシュし、D1読み取りとレンダリングコストを抑える。
+  // テーマごとに別キャッシュにする
   const cache = caches.default;
-  const cacheKey = new Request(new URL('/', c.req.url).toString());
+  const origin = new URL(c.req.url).origin;
+  const cacheKey = new Request(`${origin}/__cache__/status/${encodeURIComponent(theme)}`);
   const hit = await cache.match(cacheKey);
   if (hit) return hit;
 
   const data = await getStatusData(c.env);
-  const res = await c.html(renderStatusPage(data, c.env.TIMEZONE ?? 'UTC'));
+  const res = await c.html(renderStatusPage(data, c.env.TIMEZONE ?? 'UTC', themeToCss(theme)));
   res.headers.set('Cache-Control', 'public, max-age=30');
   c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));
   return res;
