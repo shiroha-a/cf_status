@@ -6,6 +6,7 @@ import { rollupAndPrune } from './db/retention';
 import { notify } from './notify';
 import { computeTransition } from './state';
 import type { Env, Monitor } from './types';
+import { resolveTimeZone } from './tz';
 
 /**
  * Cron entry point. Syncs the declarative config, then checks every monitor
@@ -28,7 +29,7 @@ export async function handleScheduled(env: Env, ctx: ExecutionContext): Promise<
 
   // 日次集計と保持期間外データの削除。監視結果の記録後に実行する
   const retentionDays = Number(env.RETENTION_DAYS ?? '30');
-  ctx.waitUntil(rollupAndPrune(env.DB, now, retentionDays));
+  ctx.waitUntil(rollupAndPrune(env.DB, now, retentionDays, resolveTimeZone(env.TIMEZONE)));
 }
 
 async function checkOne(

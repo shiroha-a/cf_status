@@ -1,6 +1,7 @@
 import { html, raw } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import type { Env, MonitorStatus } from '../types';
+import { resolveTimeZone, tzDayString, tzStartOfDay } from '../tz';
 
 interface DayBar {
   day: string;
@@ -73,11 +74,11 @@ const UPTIME_BAR_DAYS = 90;
 export async function getStatusData(env: Env): Promise<StatusData> {
   const now = Math.floor(Date.now() / 1000);
   const since = now - DAY_SECONDS;
-  const startOfToday = now - (now % DAY_SECONDS);
-  // 90日バーの起点(89日前の0:00 UTC)をday文字列で求める
-  const barSince = new Date((startOfToday - (UPTIME_BAR_DAYS - 1) * DAY_SECONDS) * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const tz = resolveTimeZone(env.TIMEZONE);
+  // 日境界を表示タイムゾーンに合わせる(集計側のrollupAndPruneと同一基準)
+  const startOfToday = tzStartOfDay(tz, now);
+  // 90日バーの起点(89日前のローカル0:00)をday文字列で求める
+  const barSince = tzDayString(tz, startOfToday - (UPTIME_BAR_DAYS - 1) * DAY_SECONDS);
 
   const batch = await env.DB.batch([
     env.DB.prepare(
@@ -122,10 +123,10 @@ export async function getStatusData(env: Env): Promise<StatusData> {
     m.set(d.day, d);
   }
 
-  // 表示する90日分のday列(古い順)
+  // 表示する90日分のday列(古い順)。集計と同じtz基準で生成する
   const barDays: string[] = [];
   for (let i = UPTIME_BAR_DAYS - 1; i >= 0; i--) {
-    barDays.push(new Date((startOfToday - i * DAY_SECONDS) * 1000).toISOString().slice(0, 10));
+    barDays.push(tzDayString(tz, startOfToday - i * DAY_SECONDS));
   }
 
   const monitors: MonitorView[] = monRows.map((m) => {
@@ -187,18 +188,6 @@ const STYLE = `
   td, th { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid #8883; }
   footer { margin-top: 2rem; color: #8889; font-size: 0.8rem; }
 `;
-
-/** Validate an IANA time zone, falling back to UTC if unsupported/invalid. */
-export function resolveTimeZone(tz: string | undefined): string {
-  if (!tz) return 'UTC';
-  try {
-    // 不正なタイムゾーン名はRangeErrorを投げるため、ここで弾いてUTCにフォールバック
-    new Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return tz;
-  } catch {
-    return 'UTC';
-  }
-}
 
 /** Format a unix timestamp (seconds) in the given IANA time zone. */
 function fmtTime(unix: number | null, tz: string): string {
