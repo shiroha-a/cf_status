@@ -10,6 +10,10 @@ interface MonitorView {
   lastCheckedAt: number | null;
   uptime24h: number | null;
   avgRtMs: number | null;
+  /** Data center that ran the most recent check. */
+  lastColo: string | null;
+  /** Distinct data centers seen in the last 24h, for context on RT variance. */
+  colos24h: string[];
 }
 
 interface IncidentView {
@@ -32,12 +36,14 @@ interface MonRow {
   url: string;
   current_status: string;
   last_checked_at: number | null;
+  last_colo: string | null;
 }
 interface StatRow {
   monitor_id: number;
   total: number;
   ok_count: number;
   avg_rt: number | null;
+  colos: string | null;
 }
 interface IncRow {
   name: string;
@@ -53,10 +59,15 @@ export async function getStatusData(env: Env): Promise<StatusData> {
 
   const batch = await env.DB.batch([
     env.DB.prepare(
-      'SELECT id, name, url, current_status, last_checked_at FROM monitors WHERE enabled = 1 ORDER BY name',
+      `SELECT m.id AS id, m.name AS name, m.url AS url, m.current_status AS current_status,
+              m.last_checked_at AS last_checked_at,
+              (SELECT c.colo FROM checks c WHERE c.monitor_id = m.id
+                 ORDER BY c.checked_at DESC LIMIT 1) AS last_colo
+       FROM monitors m WHERE m.enabled = 1 ORDER BY m.name`,
     ),
     env.DB.prepare(
-      `SELECT monitor_id, COUNT(*) AS total, SUM(ok) AS ok_count, AVG(response_time_ms) AS avg_rt
+      `SELECT monitor_id, COUNT(*) AS total, SUM(ok) AS ok_count, AVG(response_time_ms) AS avg_rt,
+              GROUP_CONCAT(DISTINCT colo) AS colos
        FROM checks WHERE checked_at >= ? GROUP BY monitor_id`,
     ).bind(since),
     env.DB.prepare(
@@ -75,6 +86,7 @@ export async function getStatusData(env: Env): Promise<StatusData> {
 
   const monitors: MonitorView[] = monRows.map((m) => {
     const s = statByMonitor.get(m.id);
+    const colos24h = s?.colos ? s.colos.split(',').filter(Boolean).sort() : [];
     return {
       id: m.id,
       name: m.name,
@@ -83,6 +95,8 @@ export async function getStatusData(env: Env): Promise<StatusData> {
       lastCheckedAt: m.last_checked_at,
       uptime24h: s && s.total > 0 ? (s.ok_count / s.total) * 100 : null,
       avgRtMs: s?.avg_rt != null ? Math.round(s.avg_rt) : null,
+      lastColo: m.last_colo,
+      colos24h,
     };
   });
 
@@ -144,6 +158,10 @@ export function renderStatusPage(data: StatusData): HtmlEscapedString | Promise<
             24h uptime: ${m.uptime24h == null ? '-' : `${m.uptime24h.toFixed(2)}%`}
             ${m.avgRtMs == null ? '' : raw(` &middot; avg ${m.avgRtMs}ms`)}
             &middot; last check: ${fmtTime(m.lastCheckedAt)}
+          </div>
+          <div class="meta">
+            measured from: ${m.lastColo ?? '-'}
+            ${m.colos24h.length > 1 ? raw(` &middot; 24h colos: ${m.colos24h.join(', ')}`) : ''}
           </div>
         </div>
         <span class="badge ${m.status}">${m.status.toUpperCase()}</span>

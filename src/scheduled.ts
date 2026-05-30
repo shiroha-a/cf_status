@@ -1,5 +1,6 @@
 import { monitors as monitorConfigs } from '../monitors.config';
 import { checkHttp } from './checks/http';
+import { getColo } from './checks/trace';
 import { buildRecordStatements, getDueMonitors, syncMonitors } from './db/repo';
 import { notify } from './notify';
 import { computeTransition } from './state';
@@ -17,10 +18,11 @@ export async function handleScheduled(env: Env, ctx: ExecutionContext): Promise<
   await syncMonitors(env.DB, monitorConfigs);
 
   const now = Math.floor(Date.now() / 1000);
-  const due = await getDueMonitors(env.DB, now);
+  // このCron実行を担当しているデータセンターを記録し、測定値の文脈とする
+  const [colo, due] = await Promise.all([getColo(), getDueMonitors(env.DB, now)]);
 
   await Promise.allSettled(
-    due.map((monitor) => checkOne(env, ctx, monitor, now, failThreshold, okThreshold)),
+    due.map((monitor) => checkOne(env, ctx, monitor, now, failThreshold, okThreshold, colo)),
   );
 }
 
@@ -31,11 +33,12 @@ async function checkOne(
   now: number,
   failThreshold: number,
   okThreshold: number,
+  colo: string | null,
 ): Promise<void> {
   const result = await checkHttp(monitor);
   const transition = computeTransition(monitor, result, now, failThreshold, okThreshold);
 
-  await env.DB.batch(buildRecordStatements(env.DB, monitor, result, transition, now));
+  await env.DB.batch(buildRecordStatements(env.DB, monitor, result, transition, now, colo));
 
   if (transition.event) {
     // 通知の完了をレスポンス後も待たせる
