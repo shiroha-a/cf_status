@@ -1,0 +1,6 @@
+# Copy to `.dev.vars` for local development, and register on production with:
+#   wrangler secret put DISCORD_WEBHOOK_URL
+# All notification destinations are optional; set only the ones you use.
+DISCORD_WEBHOOK_URL=""
+SLACK_WEBHOOK_URL=""
+GENERIC_WEBHOOK_URL=""

@@ -1,0 +1,41 @@
+{
+  // Template for wrangler.jsonc. Copy to `wrangler.jsonc` and fill in your own values.
+  //   cp wrangler.jsonc.example wrangler.jsonc
+  // The real wrangler.jsonc is gitignored because it holds environment-specific
+  // values (D1 database_id, custom domain routes).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hc",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-27",
+  // node:tls などNode.js互換APIを後続フェーズ(SSL期限取得の検証)で使うため有効化
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  // ステータスページの公開URL。独自ドメインを使う場合に設定する。
+  // 対象ドメインはCloudflare管理ゾーンである必要がある(DNS/TLSは自動発行)。
+  // workers.devのURLで十分なら、この routes ブロックごと削除してよい。
+  "routes": [
+    {
+      "pattern": "status.example.com",
+      "custom_domain": true
+    }
+  ],
+  // Cron Triggersは最小1分間隔。各monitorのinterval_secondsで実際の頻度を制御する
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hc",
+      // `npm run db:create` 実行後に出力されるIDをここへ貼り付ける
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "FAIL_THRESHOLD": "3",
+    "OK_THRESHOLD": "2"
+  }
+}

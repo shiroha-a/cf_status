@@ -1,0 +1,12 @@
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+*.log
+.DS_Store
+
+# 作業用ドキュメント(設計・タスク)
+.tmp/
+
+# 環境固有の設定(database_idやroutesを含むためローカル管理)
+wrangler.jsonc
