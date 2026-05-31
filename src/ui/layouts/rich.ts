@@ -62,7 +62,7 @@ const RICH_STYLE = `
   .hero-sub { margin-top: 7px; font-family: var(--font-mono); font-size: 12.5px; color: var(--dim); }
 
   .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); margin-top: var(--gap); }
-  @media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, 1fr); } .bars { gap: 1px; } }
   .tile { border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; background: var(--tile-bg); }
   .tile-label { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); }
   .tile-value { margin-top: 9px; font-size: 27px; font-weight: 600; letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 3px; }
@@ -97,7 +97,8 @@ const RICH_STYLE = `
   .pill.unknown { color: var(--dim); background: color-mix(in srgb, var(--unknown) 16%, transparent); border-color: var(--border-2); }
 
   .bars { display: flex; gap: 3px; height: 38px; margin: 18px 0 16px; align-items: flex-end; }
-  .bar-wrap { flex: 1 1 0; min-width: 2px; position: relative; display: flex; align-items: flex-end; height: 100%; }
+  /* min-width:0 で90セルが必ず親幅に収まる(モバイルでのはみ出し防止) */
+  .bar-wrap { flex: 1 1 0; min-width: 0; position: relative; display: flex; align-items: flex-end; height: 100%; }
   .bar { flex: 1; height: 100%; border-radius: 3px; background: var(--bar-empty); transition: filter .15s; }
   .bar.ok { background: linear-gradient(180deg, color-mix(in srgb, var(--up) 80%, #fff), var(--up)); }
   .bar.warn { background: linear-gradient(180deg, color-mix(in srgb, var(--warn) 80%, #fff), var(--warn)); }
