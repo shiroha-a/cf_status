@@ -8,9 +8,11 @@ import {
   DAY_SECONDS,
   type DayBar,
   fmtTime,
+  type HourPoint,
   type IncidentView,
   type MonitorView,
   type StatusData,
+  sparklineSvg,
   UPTIME_BAR_DAYS,
 } from './shared';
 import { type Theme, themeToCss } from './theme';
@@ -42,6 +44,12 @@ interface DailyRow {
   total: number;
   ok_count: number;
   avg_rt_ms: number | null;
+}
+interface HourlyRow {
+  monitor_id: number;
+  hour: string;
+  total: number;
+  ok_count: number;
 }
 
 /** Load everything the status page needs in a single D1 batch round-trip. */
@@ -76,12 +84,17 @@ export async function getStatusData(env: Env): Promise<StatusData> {
       `SELECT monitor_id, day, total, ok_count, avg_rt_ms FROM daily_stats
        WHERE day >= ? ORDER BY day`,
     ).bind(barSince),
+    env.DB.prepare(
+      `SELECT monitor_id, hour, total, ok_count FROM hourly_stats
+       WHERE hour >= ? ORDER BY hour`,
+    ).bind(barSince),
   ]);
 
   const monRows = (batch[0]?.results ?? []) as unknown as MonRow[];
   const statRows = (batch[1]?.results ?? []) as unknown as StatRow[];
   const incRows = (batch[2]?.results ?? []) as unknown as IncRow[];
   const dailyRows = (batch[3]?.results ?? []) as unknown as DailyRow[];
+  const hourlyRows = (batch[4]?.results ?? []) as unknown as HourlyRow[];
 
   const statByMonitor = new Map<number, StatRow>();
   for (const s of statRows) statByMonitor.set(s.monitor_id, s);
@@ -97,6 +110,25 @@ export async function getStatusData(env: Env): Promise<StatusData> {
     m.set(d.day, d);
   }
 
+  // monitor_id -> (day -> (hour0-23 -> uptime%)) の三段マップ
+  const hourlyByMonitor = new Map<number, Map<string, Map<number, number>>>();
+  for (const r of hourlyRows) {
+    if (r.total === 0) continue;
+    const day = r.hour.slice(0, 10);
+    const h = Number(r.hour.slice(11, 13));
+    let dm = hourlyByMonitor.get(r.monitor_id);
+    if (!dm) {
+      dm = new Map<string, Map<number, number>>();
+      hourlyByMonitor.set(r.monitor_id, dm);
+    }
+    let hm = dm.get(day);
+    if (!hm) {
+      hm = new Map<number, number>();
+      dm.set(day, hm);
+    }
+    hm.set(h, (r.ok_count / r.total) * 100);
+  }
+
   // 表示する90日分のday列(古い順)。集計と同じtz基準で生成する
   const barDays: string[] = [];
   for (let i = UPTIME_BAR_DAYS - 1; i >= 0; i--) {
@@ -107,10 +139,16 @@ export async function getStatusData(env: Env): Promise<StatusData> {
     const s = statByMonitor.get(m.id);
     const colos24h = s?.colos ? s.colos.split(',').filter(Boolean).sort() : [];
     const dayMap = dailyByMonitor.get(m.id);
+    const hourDayMap = hourlyByMonitor.get(m.id);
     const bars: DayBar[] = barDays.map((day) => {
+      const hm = hourDayMap?.get(day);
+      const hourly: HourPoint[] = Array.from({ length: 24 }, (_, h) => ({
+        h,
+        up: hm?.get(h) ?? null,
+      }));
       const d = dayMap?.get(day);
       if (!d || d.total === 0) {
-        return { day, uptime: null, total: 0, okCount: 0, avgRt: null };
+        return { day, uptime: null, total: 0, okCount: 0, avgRt: null, hourly };
       }
       return {
         day,
@@ -118,6 +156,7 @@ export async function getStatusData(env: Env): Promise<StatusData> {
         total: d.total,
         okCount: d.ok_count,
         avgRt: d.avg_rt_ms,
+        hourly,
       };
     });
     // 90日稼働率はデータのある日の平均
@@ -197,6 +236,7 @@ const CLASSIC_STYLE = `
                 border: 5px solid transparent; border-top-color: var(--tip-bg); }
   .bar-wrap:hover .tip { opacity: 1; visibility: visible; }
   .tip .k { color: var(--tip-key); }
+  .tip .spark { display: block; margin-top: 6px; color: var(--status-up); }
   .badge { padding: var(--pad-badge); border-radius: var(--radius-pill); font-size: var(--fs-badge); font-weight: var(--fw-bold); white-space: nowrap; }
   .badge.up { background: var(--status-up); color: var(--badge-fg); }
   .badge.down { background: var(--status-down); color: var(--badge-fg); }
@@ -255,6 +295,7 @@ function renderClassic(
                         <span class="k">Checks</span> ${b.okCount}/${b.total} ok<br />
                         <span class="k">Avg RT</span> ${b.avgRt == null ? '-' : `${b.avgRt}ms`}`
                 }
+                ${raw(sparklineSvg(b.hourly))}
               </span>
             </div>`,
           )}

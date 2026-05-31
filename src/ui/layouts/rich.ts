@@ -1,6 +1,6 @@
 import { html, raw } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
-import { barClass, fmtDuration, fmtTime, type StatusData } from '../shared';
+import { barClass, fmtDuration, fmtTime, type StatusData, sparklineSvg } from '../shared';
 
 /** Rich layout CSS. Tokens (var(--…)) come from the theme's :root block. */
 const RICH_STYLE = `
@@ -113,6 +113,7 @@ const RICH_STYLE = `
   .tip-day { display: block; font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-bottom: 6px; }
   .tip-row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; line-height: 1.7; }
   .tip-row .k { color: var(--dim); } .tip-row .v { font-family: var(--font-mono); }
+  .tip .spark { display: block; margin-top: 8px; color: var(--up); }
 
   .mcard-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .chip { font-family: var(--font-mono); font-size: 11.5px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 4px 9px; background: var(--tile-bg); }
@@ -218,6 +219,7 @@ export function renderRich(
                         <span class="tip-row"><span class="k">Checks</span><span class="v">${b.okCount}/${b.total}</span></span>
                         <span class="tip-row"><span class="k">Avg RT</span><span class="v">${b.avgRt == null ? '-' : `${b.avgRt}ms`}</span></span>`
                 }
+                ${raw(sparklineSvg(b.hourly))}
               </span>
             </div>`,
           )}

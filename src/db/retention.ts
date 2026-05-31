@@ -15,6 +15,9 @@ const DAILY_STATS_KEEP_DAYS = 90;
  * previous day is finalized once local midnight passes. `checks` older than
  * `retentionDays` and daily_stats older than 90 days are deleted. `daily_stats`
  * already exists in the initial migration, so no schema change is needed.
+ *
+ * `hourly_stats` is rolled up and pruned the same way, on the same window, to
+ * back the intra-day uptime sparkline in the bar tooltip.
  */
 export async function rollupAndPrune(
   db: D1Database,
@@ -48,7 +51,24 @@ export async function rollupAndPrune(
            avg_rt_ms = excluded.avg_rt_ms`,
       )
       .bind(offset, rollupSince),
+    db
+      .prepare(
+        `INSERT INTO hourly_stats (monitor_id, hour, total, ok_count)
+         SELECT monitor_id,
+                strftime('%Y-%m-%d %H', checked_at + ?, 'unixepoch') AS hour,
+                COUNT(*) AS total,
+                SUM(ok) AS ok_count
+         FROM checks
+         WHERE checked_at >= ?
+         GROUP BY monitor_id, hour
+         ON CONFLICT(monitor_id, hour) DO UPDATE SET
+           total = excluded.total,
+           ok_count = excluded.ok_count`,
+      )
+      .bind(offset, rollupSince),
     db.prepare('DELETE FROM checks WHERE checked_at < ?').bind(checksCutoff),
     db.prepare('DELETE FROM daily_stats WHERE day < ?').bind(dayCutoff),
+    // hour は 'YYYY-MM-DD HH'。dayCutoff('YYYY-MM-DD')との文字列比較で枝刈りできる
+    db.prepare('DELETE FROM hourly_stats WHERE hour < ?').bind(dayCutoff),
   ]);
 }
