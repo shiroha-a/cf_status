@@ -22,10 +22,11 @@ function findChromium() {
 
 const url = process.argv[2] ?? 'http://localhost:8787/';
 const out = process.argv[3] ?? '/tmp/hc-shot.png';
+const width = Number(process.argv[4]) || 900;
 
 const browser = await chromium.launch({ executablePath: findChromium() });
 try {
-  const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+  const page = await browser.newPage({ viewport: { width, height: 800 } });
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.screenshot({ path: out, fullPage: true });
   console.log(`saved ${out}`);

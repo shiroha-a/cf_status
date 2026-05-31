@@ -182,7 +182,8 @@ const CLASSIC_STYLE = `
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .card .meta { color: var(--fg-muted); font-size: var(--fs-meta); }
   .bars { display: flex; gap: var(--gap-bars); margin-top: 0.6rem; height: var(--bar-height); }
-  .bar-wrap { flex: 1 1 0; min-width: var(--bar-min-w); position: relative; display: flex; }
+  /* min-width:0 で90セルが必ず親幅に収まる(モバイルでのはみ出し防止) */
+  .bar-wrap { flex: 1 1 0; min-width: 0; position: relative; display: flex; }
   .bar { flex: 1; border-radius: var(--radius-bar); background: var(--bar-empty); }
   .bar.ok { background: var(--status-up); }
   .bar.warn { background: var(--status-warn); }
@@ -205,6 +206,7 @@ const CLASSIC_STYLE = `
   table { width: 100%; border-collapse: collapse; font-size: var(--fs-card); margin-top: 0.5rem; }
   td, th { text-align: left; padding: var(--pad-cell); border-bottom: 1px solid var(--border); }
   footer { margin-top: 2rem; color: var(--fg-muted); font-size: var(--fs-foot); }
+  @media (max-width: 640px) { .bars { gap: 1px; } }
 `;
 
 /** Render the classic minimal status page. */
