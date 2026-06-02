@@ -9,8 +9,6 @@ Cloudflareだけで完結する死活監視システム。Workers(Cron Triggers)
 - **D1(SQLite)**: 監視設定・チェック履歴・障害履歴・日次集計
 - 監視対象は `monitors.config.ts` で宣言(Configuration as Code)
 
-詳細な設計は `.tmp/design.md` を参照。
-
 ## セットアップ
 
 ```bash
@@ -78,7 +76,7 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
 | `FAIL_THRESHOLD` | `3` | DOWN確定に必要な連続失敗回数 |
 | `OK_THRESHOLD` | `2` | 復旧確定に必要な連続成功回数 |
 | `TIMEZONE` | `UTC` | ステータスページの時刻表示と90日バーの日区切りに使うIANAタイムゾーン(例: `Asia/Tokyo`)。不正な値はUTCにフォールバック。DSTのあるタイムゾーンは切替日にわずかな誤差あり |
-| `RETENTION_DAYS` | `30` | 生の`checks`行を保持する日数。日次集計(`daily_stats`)は90日保持 |
+| `RETENTION_DAYS` | `30` | 生の`checks`行を保持する日数。集計(`daily_stats` / `hourly_stats`)は90日保持 |
 | `THEME` | `default` | ステータスページのテーマ名(`src/ui/theme.ts`)。不正な値は`default`にフォールバック |
 
 通知(Discord等)の時刻は各クライアント側のタイムゾーンで表示されるため、`TIMEZONE`はステータスページの表示にのみ影響する。

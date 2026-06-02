@@ -57,7 +57,7 @@ export interface CheckResult {
   ok: boolean;
   statusCode: number | null;
   responseTimeMs: number;
-  /** Days until certificate expiry, when obtainable. Best-effort (see design.md 6.2). */
+  /** Days until certificate expiry, when obtainable. Currently always null; see README on SSL handling. */
   sslDaysLeft: number | null;
   error: string | null;
 }
