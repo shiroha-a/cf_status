@@ -11,29 +11,41 @@ Cloudflareだけで完結する死活監視システム。Workers(Cron Triggers)
 
 ## セットアップ
 
+### 前提
+
+- Node.js(LTS推奨)とnpm。`npm install` / `npx wrangler` の実行に必要。
+- Cloudflareアカウント。D1・Workersのデプロイに必要。
+
+wranglerは`devDependencies`に含まれるため`npm install`でローカルに入る(グローバルインストールは不要)。以降のwranglerコマンドは`npm run`スクリプト経由か`npx wrangler`で実行する。
+
 ```bash
+# 0. 依存をインストール
 npm install
 
-# 0. 設定テンプレートをコピー(どちらもgitignore。環境固有値・監視先を持つため)
+# 1. Cloudflareにログイン(ブラウザが開く。CI等では環境変数 CLOUDFLARE_API_TOKEN でも可)
+#    ※ npm run dev でローカル確認するだけなら不要(miniflareで完結)
+npx wrangler login
+
+# 2. 設定テンプレートをコピー(どちらもgitignore。環境固有値・監視先を持つため)
 cp wrangler.jsonc.example wrangler.jsonc
 cp monitors.config.ts.example monitors.config.ts
 
-# 1. D1データベースを作成し、出力されたIDを wrangler.jsonc の database_id に貼り付ける
+# 3. D1データベースを作成し、出力されたIDを wrangler.jsonc の database_id に貼り付ける
 npm run db:create
 
-# 2. スキーマを適用(ローカル / 本番)
+# 4. スキーマを適用(ローカル / 本番)
 npm run db:migrate:local
 npm run db:migrate:remote
 
-# 3. 監視対象を編集
+# 5. 監視対象を編集
 #    monitors.config.ts を編集
 
-# 4. 通知先を設定(使うものだけ)
-wrangler secret put DISCORD_WEBHOOK_URL
-wrangler secret put SLACK_WEBHOOK_URL
-wrangler secret put GENERIC_WEBHOOK_URL
+# 6. 通知先を設定(使うものだけ)
+npx wrangler secret put DISCORD_WEBHOOK_URL
+npx wrangler secret put SLACK_WEBHOOK_URL
+npx wrangler secret put GENERIC_WEBHOOK_URL
 
-# 5. デプロイ
+# 7. デプロイ
 npm run deploy
 ```
 
