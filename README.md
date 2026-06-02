@@ -13,6 +13,11 @@ Cloudflareだけで完結する死活監視システム。Workers(Cron Triggers)
 
 ## セットアップ
 
+### 前提
+
+- Node.js(LTS推奨)とnpm。`npm install` / `npx wrangler` の実行に必要。
+- Cloudflareアカウント。D1・Workersのデプロイに必要。
+
 wranglerは`devDependencies`に含まれるため`npm install`でローカルに入る(グローバルインストールは不要)。以降のwranglerコマンドは`npm run`スクリプト経由か`npx wrangler`で実行する。
 
 ```bash
