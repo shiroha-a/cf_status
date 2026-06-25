@@ -9,7 +9,8 @@ import { sendGenericWebhook } from './webhook';
  */
 export async function notify(env: Env, event: NotifyEvent): Promise<void> {
   const tasks: Promise<void>[] = [];
-  if (env.DISCORD_WEBHOOK_URL) tasks.push(sendDiscord(env.DISCORD_WEBHOOK_URL, event));
+  if (env.DISCORD_WEBHOOK_URL)
+    tasks.push(sendDiscord(env.DISCORD_WEBHOOK_URL, event, env.STATUS_PAGE_URL));
   if (env.SLACK_WEBHOOK_URL) tasks.push(sendSlack(env.SLACK_WEBHOOK_URL, event));
   if (env.GENERIC_WEBHOOK_URL) tasks.push(sendGenericWebhook(env.GENERIC_WEBHOOK_URL, event));
 

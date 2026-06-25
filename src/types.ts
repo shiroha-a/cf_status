@@ -11,6 +11,8 @@ export interface Env {
   THEME?: string;
   /** Days to keep raw `checks` rows. Daily aggregates are kept 90 days. Default 30. */
   RETENTION_DAYS?: string;
+  /** Public status page URL. When set, included in notifications (e.g. as the Discord embed title link). */
+  STATUS_PAGE_URL?: string;
   DISCORD_WEBHOOK_URL?: string;
   SLACK_WEBHOOK_URL?: string;
   GENERIC_WEBHOOK_URL?: string;
