@@ -43,5 +43,7 @@
     "RETENTION_DAYS": "30",
     // ステータスページのテーマ名(src/ui/theme.ts)。未設定なら default
     "THEME": "default"
+    // 公開ステータスページのURL。設定するとDiscord通知のembedタイトルがこのURLへのリンクになる。
+    // 例: "STATUS_PAGE_URL": "https://status.example.com"
   }
 }
