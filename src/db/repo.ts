@@ -111,6 +111,47 @@ export async function getDueMonitors(db: D1Database, now: number): Promise<Monit
 }
 
 /**
+ * Look up the currently-open incident for a monitor, returning the fields
+ * needed to construct a Discord recovery edit (original cause + stored
+ * Discord message ID). Null if no incident is open.
+ */
+export async function getOpenIncident(
+  db: D1Database,
+  monitorId: number,
+): Promise<{ id: number; cause: string | null; discordMessageId: string | null } | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, cause, discord_message_id
+       FROM incidents
+       WHERE monitor_id = ? AND resolved_at IS NULL
+       ORDER BY started_at DESC LIMIT 1`,
+    )
+    .bind(monitorId)
+    .first<{ id: number; cause: string | null; discord_message_id: string | null }>();
+  if (!row) return null;
+  return { id: row.id, cause: row.cause, discordMessageId: row.discord_message_id };
+}
+
+/** Persist a Discord message ID to the most recently opened incident for a monitor. */
+export async function setIncidentDiscordMessageId(
+  db: D1Database,
+  monitorId: number,
+  messageId: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE incidents SET discord_message_id = ?
+       WHERE id = (
+         SELECT id FROM incidents
+         WHERE monitor_id = ?
+         ORDER BY started_at DESC LIMIT 1
+       )`,
+    )
+    .bind(messageId, monitorId)
+    .run();
+}
+
+/**
  * Build the statements that persist one check: append to `checks`, update the
  * monitor's denormalized state, and open/resolve an incident when applicable.
  * Returned as a batch so the writes commit atomically in a single round-trip.
