@@ -4,6 +4,44 @@ import { EVENT_COLOR, formatDuration } from './format';
 const TIMEOUT_MS = 10000;
 
 /**
+ * Validate a configured public status page URL before it is used as a Discord
+ * embed `url`. Discord rejects an embed whose `url` is not a well-formed
+ * http(s) URL with a 400, which drops the *entire* notification — for an
+ * alerting tool that means silently losing alerts. A malformed value is
+ * therefore ignored (the title link is simply omitted) instead of being
+ * allowed to break the post.
+ */
+export function safeStatusPageUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return raw;
+  } catch {
+    // Not a parseable URL — fall through to the warning below.
+  }
+  console.error(`ignoring invalid STATUS_PAGE_URL: ${raw}`);
+  return undefined;
+}
+
+/** Append query parameters to a webhook URL without clobbering existing ones. */
+function withQuery(base: string, params: Record<string, string>): string {
+  const u = new URL(base);
+  for (const [key, value] of Object.entries(params)) u.searchParams.set(key, value);
+  return u.toString();
+}
+
+/**
+ * Build the message-edit endpoint for a webhook, preserving any existing query
+ * string (e.g. `?thread_id=` on a thread webhook), which must be carried over
+ * to the PATCH as well.
+ */
+function messageEndpoint(base: string, messageId: string): string {
+  const u = new URL(base);
+  u.pathname = `${u.pathname.replace(/\/+$/, '')}/messages/${encodeURIComponent(messageId)}`;
+  return u.toString();
+}
+
+/**
  * Send a Discord embed via an Incoming Webhook URL.
  *
  * Uses `?wait=true` so the response includes the message ID, which the caller
@@ -17,7 +55,7 @@ export async function sendDiscord(
   event: NotifyEvent,
   statusPageUrl?: string,
 ): Promise<string | null> {
-  const res = await fetch(`${url}?wait=true`, {
+  const res = await fetch(withQuery(url, { wait: 'true' }), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ embeds: [buildEmbed(event, statusPageUrl)] }),
@@ -47,7 +85,7 @@ export async function editDiscordToResolved(
   downtimeSec: number,
   statusPageUrl?: string,
 ): Promise<void> {
-  const res = await fetch(`${url}/messages/${messageId}`, {
+  const res = await fetch(messageEndpoint(url, messageId), {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({

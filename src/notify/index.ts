@@ -1,5 +1,5 @@
 import type { Env, NotifyEvent } from '../types';
-import { editDiscordToResolved, sendDiscord } from './discord';
+import { editDiscordToResolved, safeStatusPageUrl, sendDiscord } from './discord';
 import { sendSlack } from './slack';
 import { sendGenericWebhook } from './webhook';
 
@@ -53,13 +53,14 @@ function handleDiscord(
   result: NotifyResult,
 ): Promise<void> | null {
   if (!env.DISCORD_WEBHOOK_URL) return null;
+  const webhook = env.DISCORD_WEBHOOK_URL;
+  // 不正なURLはDiscordがembedごと400で弾き全通知が落ちるため、ここで検証して除外する
+  const statusPageUrl = safeStatusPageUrl(env.STATUS_PAGE_URL);
 
   // Edit the existing DOWN message instead of posting a new one on recovery.
   if (event.type === 'up' && ctx.resolvingIncident?.discordMessageId) {
-    const webhook = env.DISCORD_WEBHOOK_URL;
     const msgId = ctx.resolvingIncident.discordMessageId;
     const cause = ctx.resolvingIncident.cause ?? '(unknown)';
-    const statusPageUrl = env.STATUS_PAGE_URL;
     return editDiscordToResolved(
       webhook,
       msgId,
@@ -75,7 +76,7 @@ function handleDiscord(
     });
   }
 
-  return sendDiscord(env.DISCORD_WEBHOOK_URL, event, env.STATUS_PAGE_URL).then((id) => {
+  return sendDiscord(webhook, event, statusPageUrl).then((id) => {
     result.discordMessageId = id;
   });
 }

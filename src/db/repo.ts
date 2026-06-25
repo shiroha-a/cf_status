@@ -132,7 +132,13 @@ export async function getOpenIncident(
   return { id: row.id, cause: row.cause, discordMessageId: row.discord_message_id };
 }
 
-/** Persist a Discord message ID to the most recently opened incident for a monitor. */
+/**
+ * Persist a Discord message ID to the currently-open incident for a monitor.
+ *
+ * Scoped to `resolved_at IS NULL` so that, if the DOWN notification is slow
+ * enough for the monitor to recover and fail again, the stored ID lands on the
+ * still-open incident rather than clobbering an already-resolved one.
+ */
 export async function setIncidentDiscordMessageId(
   db: D1Database,
   monitorId: number,
@@ -143,7 +149,7 @@ export async function setIncidentDiscordMessageId(
       `UPDATE incidents SET discord_message_id = ?
        WHERE id = (
          SELECT id FROM incidents
-         WHERE monitor_id = ?
+         WHERE monitor_id = ? AND resolved_at IS NULL
          ORDER BY started_at DESC LIMIT 1
        )`,
     )
