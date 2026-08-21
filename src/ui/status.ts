@@ -75,9 +75,12 @@ export async function getStatusData(env: Env): Promise<StatusData> {
               GROUP_CONCAT(DISTINCT colo) AS colos
        FROM checks WHERE checked_at >= ? GROUP BY monitor_id`,
     ).bind(since),
+    // 監視をやめたmonitorのincidentは閲覧者にとってノイズなので除外する。
+    // 行自体は削除しないので、configに戻せば履歴も再び表示される
     env.DB.prepare(
       `SELECT m.name AS name, i.started_at AS started_at, i.resolved_at AS resolved_at, i.cause AS cause
        FROM incidents i JOIN monitors m ON m.id = i.monitor_id
+       WHERE m.enabled = 1
        ORDER BY i.started_at DESC LIMIT 20`,
     ),
     env.DB.prepare(

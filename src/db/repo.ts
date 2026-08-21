@@ -45,6 +45,10 @@ function rowToMonitor(r: MonitorRow): Monitor {
 /**
  * Sync the declarative monitor list into D1. Entries are upserted by `name`;
  * monitors absent from the config are disabled (not deleted, to preserve history).
+ *
+ * Disabling also settles the monitor: its open incident is resolved and its
+ * denormalized state is reset. A disabled monitor is never checked again, so
+ * without this nothing would ever close that incident.
  */
 export async function syncMonitors(db: D1Database, configs: MonitorConfig[]): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
@@ -93,6 +97,26 @@ export async function syncMonitors(db: D1Database, configs: MonitorConfig[]): Pr
   } else {
     stmts.push(db.prepare('UPDATE monitors SET enabled = 0'));
   }
+
+  // 監視をやめたmonitorの後始末。無効化するとgetDueMonitorsが返さなくなり以降チェックが
+  // 走らないため、未解決incidentを閉じる遷移が二度と起きずongoingのまま残り続けてしまう。
+  // 監視を止めた時点(now)で閉じ、configに戻したときのために状態もunknownへ戻す。
+  // 実際に復旧したわけではないので通知は出さず、DB上のクローズだけを行う。
+  // current_statusの条件で冪等にし、片付いた行へ毎分書き込まないようにしている
+  stmts.push(
+    db
+      .prepare(
+        `UPDATE incidents SET resolved_at = ?
+         WHERE resolved_at IS NULL
+           AND monitor_id IN (SELECT id FROM monitors WHERE enabled = 0)`,
+      )
+      .bind(now),
+    db.prepare(
+      `UPDATE monitors
+       SET current_status = 'unknown', consecutive_fail = 0, consecutive_ok = 0, down_since = NULL
+       WHERE enabled = 0 AND current_status != 'unknown'`,
+    ),
+  );
 
   await db.batch(stmts);
 }
